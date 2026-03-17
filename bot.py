@@ -9,12 +9,12 @@ import cv2
 import numpy as np
 from discord_webhook import DiscordWebhook
 import os
+import psycopg2
 
 # ================= CONFIG =================
 URL = "https://www.youtube.com/@AFKArenaOfficial/posts"
-WEBHOOK_URL = "https://discord.com/api/webhooks/1483401513505394769/NH4dR-gx1j8Z2aj9ffZWKzkwo0JdexTKrDzhKkFDDJwj7ru7Xv1uWQRarzU6I7jdiVY1"
+WEBHOOK_URL = os.getenv("https://discord.com/api/webhooks/1483401513505394769/NH4dR-gx1j8Z2aj9ffZWKzkwo0JdexTKrDzhKkFDDJwj7ru7Xv1uWQRarzU6I7jdiVY1")
 
-HISTORY_FILE = "posts.json"
 CHECK_INTERVAL = 43200  # 12 horas
 
 pytesseract.pytesseract.tesseract_cmd = r"/usr/bin/tesseract"
@@ -22,23 +22,56 @@ pytesseract.pytesseract.tesseract_cmd = r"/usr/bin/tesseract"
 HEADERS = {
     "User-Agent": "Mozilla/5.0"
 }
+
+DATABASE_URL = os.getenv("DATABASE_URL")
 # ==========================================
 
 
-# ================= HISTÓRICO =================
-def load_history():
-    if not os.path.exists(HISTORY_FILE):
-        return []
-    try:
-        with open(HISTORY_FILE, "r") as f:
-            return json.load(f)
-    except:
-        return []
+# ================= BANCO =================
+def get_connection():
+    return psycopg2.connect(DATABASE_URL)
 
 
-def save_history(data):
-    with open(HISTORY_FILE, "w") as f:
-        json.dump(data, f)
+def create_table():
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS posts (
+            id TEXT PRIMARY KEY
+        )
+    """)
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+
+def post_exists(post_id):
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute("SELECT 1 FROM posts WHERE id = %s", (post_id,))
+    exists = cur.fetchone() is not None
+
+    cur.close()
+    conn.close()
+
+    return exists
+
+
+def save_post(post_id):
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        "INSERT INTO posts (id) VALUES (%s) ON CONFLICT DO NOTHING",
+        (post_id,)
+    )
+
+    conn.commit()
+    cur.close()
+    conn.close()
 
 
 # ================= PEGAR POSTS =================
@@ -64,16 +97,13 @@ def get_posts():
 
                     post_id = post.get("postId")
 
-                    # TEXTO
                     text_runs = post.get("contentText", {}).get("runs", [])
                     text = " ".join([r.get("text", "") for r in text_runs]).lower()
 
-                    # 🎯 FILTRO INTELIGENTE
                     keywords = ["gift code", "new code", "redeem code", "code:"]
                     if not any(k in text for k in keywords):
                         return
 
-                    # 🚫 IGNORA QR/SPAM
                     if "qr" in text and "gift" not in text:
                         return
 
@@ -118,10 +148,7 @@ def preprocess(img):
     img = np.array(img)
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-    # melhora contraste
     gray = cv2.convertScaleAbs(gray, alpha=2, beta=20)
-
-    # binarização
     _, thresh = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY)
 
     return Image.fromarray(thresh)
@@ -139,11 +166,10 @@ def extract_codes(image_url):
             config="--psm 6 -c tessedit_char_whitelist=abcdefghijklmnopqrstuvwxyz0123456789"
         ).lower()
 
-        # 🎯 padrão mais confiável (AFK geralmente 10 chars)
         codes = re.findall(r'\b[a-z0-9]{10}\b', text)
 
         print("🔍 OCR TEXTO:", text)
-        print("🎯 CÓDIGOS DETECTADOS:", codes)
+        print("🎯 CÓDIGOS:", codes)
 
         return list(set(codes))
 
@@ -173,13 +199,12 @@ def send(image_url, codes):
 def main():
     print("\n🚀 Rodando verificação...")
 
-    history = load_history()
     posts = get_posts()
 
     print(f"📊 POSTS FILTRADOS: {len(posts)}")
 
     for post in posts:
-        if post["id"] in history:
+        if post_exists(post["id"]):
             continue
 
         print("\n🆕 NOVO POST DETECTADO!")
@@ -189,15 +214,16 @@ def main():
             codes = extract_codes(img)
             send(img, codes)
 
-        history.append(post["id"])
-        save_history(history)
+        save_post(post["id"])
 
     print("✅ Verificação finalizada!")
 
 
-# ================= LOOP 24/7 =================
+# ================= LOOP =================
 if __name__ == "__main__":
-    print("🔥 Bot da Taverna iniciado!")
+    print("🔥 Bot iniciado com PostgreSQL!")
+
+    create_table()
 
     while True:
         try:
@@ -205,5 +231,5 @@ if __name__ == "__main__":
         except Exception as e:
             print("❌ Erro no loop:", e)
 
-        print("⏳ Aguardando 12 horas...")
+        print("⏳ Dormindo 12 horas...")
         time.sleep(CHECK_INTERVAL)

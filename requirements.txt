@@ -4,3 +4,4 @@ pillow
 opencv-python-headless
 discord-webhook
 numpy
+psycopg2-binary

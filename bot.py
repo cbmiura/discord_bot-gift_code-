@@ -1,7 +1,6 @@
 import requests
 import re
 import json
-import time
 import pytesseract
 from PIL import Image
 from io import BytesIO
@@ -15,7 +14,6 @@ URL = "https://www.youtube.com/@AFKArenaOfficial/posts"
 WEBHOOK_URL = "https://discord.com/api/webhooks/1483401513505394769/NH4dR-gx1j8Z2aj9ffZWKzkwo0JdexTKrDzhKkFDDJwj7ru7Xv1uWQRarzU6I7jdiVY1"
 
 HISTORY_FILE = "posts.json"
-CHECK_INTERVAL = 600  # 10 minutos
 
 pytesseract.pytesseract.tesseract_cmd = r"/usr/bin/tesseract"
 
@@ -39,9 +37,9 @@ def save_history(data):
 
 # ================= PEGAR POSTS =================
 def get_posts():
-    html = requests.get(URL, headers=HEADERS).text
+    html = requests.get(URL + "?hl=en", headers=HEADERS).text
 
-    data = re.search(r"var ytInitialData = ({.*?});</script>", html)
+    data = re.search(r"ytInitialData\s*=\s*({.*?});", html)
 
     if not data:
         return []
@@ -58,16 +56,17 @@ def get_posts():
 
                 post_id = post.get("postId")
 
-                # TEXTO
                 text_runs = post.get("contentText", {}).get("runs", [])
                 text = " ".join([r.get("text", "") for r in text_runs]).lower()
 
                 # 🎯 FILTRO INTELIGENTE
-                keywords = ["gift code", "new code", "redeem code", "code:"]
-                if not any(k in text for k in keywords):
+                if "code" not in text:
                     return
 
-                # 🚫 ANTI QR/SPAM
+                if not any(k in text for k in ["gift", "redeem", "new"]):
+                    return
+
+                # 🚫 ANTI QR
                 if "qr" in text and "gift" not in text:
                     return
 
@@ -124,7 +123,6 @@ def extract_codes(image_url):
             config="--psm 6 -c tessedit_char_whitelist=abcdefghijklmnopqrstuvwxyz0123456789"
         ).lower()
 
-        # 🎯 padrão mais preciso
         codes = re.findall(r'\b[a-z0-9]{10}\b', text)
 
         return list(set(codes))
@@ -152,39 +150,32 @@ def send(image_url, codes):
 
 # ================= MAIN =================
 def main():
+    print("🚀 Verificando posts...")
+
     history = load_history()
 
-    print("🔥 Monitorando POSTS do YouTube...")
+    try:
+        posts = get_posts()
 
-    while True:
-        try:
-            posts = get_posts()
+        print(f"📊 Posts encontrados: {len(posts)}")
 
-            if not posts:
-                print("Nenhum post relevante...")
+        for post in posts:
+            if post["id"] in history:
+                continue
 
-            for post in posts:
-                if post["id"] in history:
-                    continue
+            print("🆕 Novo post detectado!")
 
-                print("🆕 Post com código detectado!")
+            for img in post["images"]:
+                codes = extract_codes(img)
+                send(img, codes)
 
-                for img in post["images"]:
-                    print("🔍 Lendo imagem...")
+            history.append(post["id"])
+            save_history(history)
 
-                    codes = extract_codes(img)
+    except Exception as e:
+        print("Erro:", e)
 
-                    send(img, codes)
-
-                history.append(post["id"])
-                save_history(history)
-
-            print("OK, esperando...")
-
-        except Exception as e:
-            print("Erro:", e)
-
-        time.sleep(CHECK_INTERVAL)
+    print("✅ Finalizado!")
 
 
 if __name__ == "__main__":

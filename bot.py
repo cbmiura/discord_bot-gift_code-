@@ -13,7 +13,8 @@ import psycopg2
 
 # ================= CONFIG =================
 URL = "https://www.youtube.com/@AFKArenaOfficial/posts"
-WEBHOOK_URL = os.getenv("https://discord.com/api/webhooks/1483401513505394769/NH4dR-gx1j8Z2aj9ffZWKzkwo0JdexTKrDzhKkFDDJwj7ru7Xv1uWQRarzU6I7jdiVY1")
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 CHECK_INTERVAL = 43200  # 12 horas
 
@@ -22,8 +23,6 @@ pytesseract.pytesseract.tesseract_cmd = r"/usr/bin/tesseract"
 HEADERS = {
     "User-Agent": "Mozilla/5.0"
 }
-
-DATABASE_URL = os.getenv("DATABASE_URL")
 # ==========================================
 
 

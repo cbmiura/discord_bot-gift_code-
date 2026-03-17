@@ -23,7 +23,7 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0"
 }
 
-DATABASE_URL = os.getenv("DATABASE_URL")
+DATABASE_URL = os.getenv("postgresql://postgres:EMnBIzWtpgvgCqdhddBtDNLSMazcBcqb@postgres.railway.internal:5432/railway")
 # ==========================================
 
 

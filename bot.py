@@ -12,7 +12,7 @@ import os
 
 # ================= CONFIG =================
 URL = "https://www.youtube.com/@AFKArenaOfficial/posts"
-WEBHOOK_URL = "COLOQUE_SUA_WEBHOOK_AQUI"
+WEBHOOK_URL = "https://discord.com/api/webhooks/1483401513505394769/NH4dR-gx1j8Z2aj9ffZWKzkwo0JdexTKrDzhKkFDDJwj7ru7Xv1uWQRarzU6I7jdiVY1"
 
 HISTORY_FILE = "posts.json"
 CHECK_INTERVAL = 43200  # 12 horas
